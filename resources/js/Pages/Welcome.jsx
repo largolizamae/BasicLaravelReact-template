@@ -695,6 +695,8 @@ export default function Welcome({ onEnter, onNavigate }) {
           </div>
         </div>
 
+        
+
         <div className="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
           © {new Date().getFullYear()} AromaSlice Artisan Pizzeria &amp; Lab. Crafted with 🔥 and semolina flour.
         </div>
