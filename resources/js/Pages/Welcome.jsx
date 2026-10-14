@@ -1,706 +1,1095 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Head, Link } from '@inertiajs/react';
 
-const FEATURES = [
+const STORAGE_KEY = 'aromaslice_products_v1';
+const CART_STORAGE_KEY = 'aromaslice_cart_v1';
+
+const INITIAL_PRODUCTS = [
   {
-    icon: 'fa-fire',
-    title: 'Wood-Fired Oven',
-    desc: 'Baked at on volcanic stone for that perfect leopard-spotted crust.',
-    color: 'from-orange-500 to-red-500',
+    id: 'pizza-1',
+    name: 'Margherita Regina',
+    price: 199,
+    tag: 'Classic',
+    crust: 'Neapolitan Thin',
+    description: 'San Marzano tomato sauce, fior di latte mozzarella, fresh sweet basil, and extra virgin olive oil.',
+    image: 'https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?w=600&q=80&auto=format&fit=crop',
+    rating: 4.9,
   },
   {
-    icon: 'fa-pizza-slice',
-    title: 'Artisan Ingredients',
-    desc: 'San Marzano tomatoes, fior di latte, and 24-month aged prosciutto.',
-    color: 'from-amber-500 to-orange-500',
+    id: 'pizza-2',
+    name: 'Pepperoni Overload',
+    price: 249,
+    tag: 'Best Seller',
+    crust: 'Sourdough Crisp',
+    description: 'Crispy cupping pepperoni, aged whole milk mozzarella, hot chili honey drizzle, and oregano.',
+    image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&q=80&auto=format&fit=crop',
+    rating: 4.8,
   },
   {
-    icon: 'fa-wand-magic-sparkles',
-    title: 'Build Your Own',
-    desc: 'Design your ultimate pie in our interactive 3D pizza lab.',
-    color: 'from-purple-500 to-pink-500',
+    id: 'pizza-3',
+    name: 'Truffle Wild Mushroom',
+    price: 279,
+    tag: 'Best Seller',
+    crust: 'Wood-Fired Crisp',
+    description: 'Roasted cremini & shiitake mushrooms, white truffle cream sauce, fontina cheese, fresh thyme.',
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80&auto=format&fit=crop',
+    rating: 5.0,
   },
   {
-    icon: 'fa-motorcycle',
-    title: 'Live Tracking',
-    desc: 'Follow your order from our oven to your doorstep in real time.',
-    color: 'from-sky-500 to-emerald-500',
+    id: 'pizza-4',
+    name: 'Diavola Inferno',
+    price: 259,
+    tag: 'Spicy',
+    crust: 'Neapolitan Thin',
+    description: 'Calabrian chili paste, spicy ventricina salami, smoked provolone, and roasted chili oil.',
+    image: 'https://images.unsplash.com/photo-1594007654729-407eedc4be65?w=600&q=80&auto=format&fit=crop',
+    rating: 4.7,
+  },
+  {
+    id: 'pizza-5',
+    name: 'Quattro Formaggi Bianca',
+    price: 269,
+    tag: 'Vegetarian',
+    crust: 'Stuffed Garlic Crust',
+    description: 'Mozzarella, gorgonzola dolce, whipped ricotta, parmigiano reggiano, and crushed walnuts.',
+    image: 'https://images.unsplash.com/photo-1571407970349-bc81e7e96d47?w=600&q=80&auto=format&fit=crop',
+    rating: 4.9,
+  },
+  {
+    id: 'pizza-6',
+    name: 'Smokey BBQ Pollo',
+    price: 279,
+    tag: 'Chef Special',
+    crust: 'Crispy Pan',
+    description: 'Slow-smoked chicken breast, sweet hickory BBQ reduction, red onion slivers, and smoked gouda.',
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80&auto=format&fit=crop',
+    rating: 4.6,
   },
 ];
 
-const PREVIEW_PIZZAS = [
-  { name: 'Margherita Regina', emoji: '🍕', price: 14.99, tag: 'Classic' },
-  { name: 'Pepperoni Overload', emoji: '🍕', price: 17.99, tag: 'Best Seller' },
-  { name: 'Truffle Mushroom', emoji: '🍄', price: 18.99, tag: "Best Seller" },
-  { name: 'Diavola Inferno', emoji: '🌶️', price: 16.99, tag: 'Add On' },
-];
+const TAG_COLORS = {
+  Classic: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+  'Best Seller': 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+  Spicy: 'bg-red-500/10 text-red-600 border-red-500/30',
+  Vegetarian: 'bg-teal-500/10 text-teal-600 border-teal-500/30',
+  'Chef Special': 'bg-purple-500/10 text-purple-600 border-purple-500/30',
+};
 
-const STEPS = [
-  {
-    num: '01',
-    title: 'Choose Your Pie',
-    desc: 'Browse our signature menu or start from a blank canvas in the Pizza Lab.',
-    icon: 'fa-utensils',
-  },
-  {
-    num: '02',
-    title: 'Customize Everything',
-    desc: 'Pick your size, crust, sauce, cheese level, and stack up to 6 fresh toppings.',
-    icon: 'fa-sliders',
-  },
-  {
-    num: '03',
-    title: 'Track It Live',
-    desc: 'Watch your pizza move from dough prep to wood-fired oven to your door.',
-    icon: 'fa-location-dot',
-  },
-];
+export default function Welcome({ auth, canLogin, canRegister }) {
+  // Products state (persisted in browser localStorage)
+  const [products, setProducts] = useState(() => {
+    if (typeof window === 'undefined') return INITIAL_PRODUCTS;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_PRODUCTS;
+  });
 
-const STATS = [
-  { value: '', label: 'Oven Temperature' },
-  { value: '', label: 'Average Bake Time' },
-  { value: '', label: 'Customer Rating' },
-  { value: '', label: 'Avg. Delivery' },
-];
+  // Cart state
+  const [cart, setCart] = useState(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {};
+  });
 
-export default function Welcome({ onEnter, onNavigate }) {
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTag, setSelectedTag] = useState('All');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
-  const heroRef = useRef(null);
+  const [toast, setToast] = useState('');
 
-  
+  // Add / Edit Product Modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingId, setEditingId] = useState(null);
+  const [productForm, setProductForm] = useState({
+    name: '',
+    price: '',
+    tag: 'Classic',
+    crust: 'Neapolitan Thin',
+    description: '',
+    image: '',
+  });
+
+  // Toast feedback
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
+
+  // Sync products to localStorage
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [products]);
 
-
+  // Sync cart to localStorage
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % STEPS.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [cart]);
 
-  
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
+  // Cart actions
+  const addToCart = (id) => {
+    setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+    const item = products.find((p) => p.id === id);
+    if (item) showToast(`Added "${item.name}" to cart`);
+  };
 
-    const handleMove = (e) => {
-      const { innerWidth, innerHeight } = window;
-      const x = (e.clientX / innerWidth - 0.5) * 30;
-      const y = (e.clientY / innerHeight - 0.5) * 30;
-      el.style.transform = `translate(${x}px, ${y}px)`;
-    };
+  const decrementCart = (id) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      if (next[id] > 1) {
+        next[id] -= 1;
+      } else {
+        delete next[id];
+      }
+      return next;
+    });
+  };
 
-    window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
-  }, []);
+  const removeFromCart = (id) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
 
-  
-  const goTo = (view) => {
+  const clearCart = () => {
+    setCart({});
+    showToast('Cart cleared');
+  };
+
+  const checkout = () => {
+    setCart({});
+    setCartDrawerOpen(false);
+    showToast('🎉 Order placed successfully! Thank you for ordering.');
+  };
+
+  // Filter products
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesQuery =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.crust && p.crust.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesTag = selectedTag === 'All' || p.tag === selectedTag;
+      return matchesQuery && matchesTag;
+    });
+  }, [products, searchQuery, selectedTag]);
+
+  // Cart totals
+  const cartItems = useMemo(() => {
+    return Object.entries(cart)
+      .map(([id, qty]) => {
+        const item = products.find((p) => p.id === id);
+        if (!item) return null;
+        return { ...item, qty };
+      })
+      .filter(Boolean);
+  }, [cart, products]);
+
+  const totalCartCount = cartItems.reduce((sum, item) => sum + item.qty, 0);
+  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+  // Open modal to add product
+  const openAddModal = () => {
+    setModalMode('create');
+    setEditingId(null);
+    setProductForm({
+      name: '',
+      price: '',
+      tag: 'Classic',
+      crust: 'Neapolitan Thin',
+      description: '',
+      image: '',
+    });
+    setIsProductModalOpen(true);
+  };
+
+  // Open modal to edit product
+  const openEditModal = (p) => {
+    setModalMode('edit');
+    setEditingId(p.id);
+    setProductForm({
+      name: p.name,
+      price: p.price.toString(),
+      tag: p.tag || 'Classic',
+      crust: p.crust || 'Neapolitan Thin',
+      description: p.description || '',
+      image: p.image || '',
+    });
+    setIsProductModalOpen(true);
+  };
+
+  // Save product from modal
+  const handleSaveProduct = (e) => {
+    e.preventDefault();
+    if (!productForm.name.trim()) return;
+    const priceNum = parseFloat(productForm.price) || 199;
+    const fallbackImage =
+      productForm.image.trim() ||
+      'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80&auto=format&fit=crop';
+
+    if (modalMode === 'create') {
+      const newProduct = {
+        id: `pizza-${Date.now()}`,
+        name: productForm.name.trim(),
+        price: priceNum,
+        tag: productForm.tag,
+        crust: productForm.crust,
+        description: productForm.description.trim(),
+        image: fallbackImage,
+        rating: 5.0,
+      };
+      setProducts((prev) => [newProduct, ...prev]);
+      showToast(`✨ Product "${newProduct.name}" added to menu!`);
+    } else {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingId
+            ? {
+                ...p,
+                name: productForm.name.trim(),
+                price: priceNum,
+                tag: productForm.tag,
+                crust: productForm.crust,
+                description: productForm.description.trim(),
+                image: fallbackImage,
+              }
+            : p
+        )
+      );
+      showToast(`✏️ Product "${productForm.name}" updated!`);
+    }
+
+    setIsProductModalOpen(false);
+  };
+
+  // Delete product
+  const handleDeleteProduct = (id) => {
+    const item = products.find((p) => p.id === id);
+    if (window.confirm(`Delete "${item?.name || 'this product'}"?`)) {
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      removeFromCart(id);
+      showToast('🗑️ Product deleted');
+    }
+  };
+
+  // Reset default products
+  const handleResetDefaults = () => {
+    if (window.confirm('Reset all products back to default menu?')) {
+      setProducts(INITIAL_PRODUCTS);
+      showToast('🔄 Reset to default menu');
+    }
+  };
+
+  const scrollTo = (id) => {
     setMobileMenuOpen(false);
-    if (onNavigate) onNavigate(view);
-    else if (onEnter) onEnter(view);
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1015] text-slate-100 overflow-x-hidden">
-     
-      <style>{`
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #121316; }
-        ::-webkit-scrollbar-thumb { background: #2a2d3d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #ea580c; }
+    <div className="min-h-screen bg-neutral-900 text-neutral-100 font-sans">
+      <Head title="AromaSlice — Artisan Wood-Fired Pizza" />
 
-        @keyframes floatY {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-18px); }
-        }
-        @keyframes spinSlow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes steamRise {
-          0% { transform: translateY(0) scale(1); opacity: 0; }
-          50% { opacity: 0.6; }
-          100% { transform: translateY(-40px) scale(1.6); opacity: 0; }
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(24px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulseGlow {
-          0%, 100% { box-shadow: 0 0 10px rgba(234, 88, 12, 0.4); }
-          50% { box-shadow: 0 0 28px rgba(234, 88, 12, 0.9); }
-        }
-        .animate-float { animation: floatY 6s ease-in-out infinite; }
-        .animate-spin-slow { animation: spinSlow 28s linear infinite; }
-        .animate-steam { animation: steamRise 2.4s ease-out infinite; }
-        .animate-fade-up { animation: fadeUp 0.7s ease-out both; }
-        .animate-pulse-glow { animation: pulseGlow 2.4s ease-in-out infinite; }
-      `}</style>
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div className="bg-orange-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2">
+            <span>🍕</span>
+            <span>{toast}</span>
+          </div>
+        </div>
+      )}
 
-     
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? 'bg-[#12141c]/90 backdrop-blur-md border-b border-slate-800 shadow-lg shadow-black/40'
-            : 'bg-transparent border-b border-transparent'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      {/* ------------------------------------------------------------- */}
+      {/* FULL-WIDTH TOP HEADER (NO SIDEBAR ON LANDING PAGE)            */}
+      {/* ------------------------------------------------------------- */}
+      <header className="sticky top-0 z-40 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
           
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-3 group"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform">
-              <i className="fa-solid fa-pizza-slice text-2xl rotate-45" />
+          {/* Brand Logo */}
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-600/30 group-hover:scale-105 transition">
+              <span className="text-xl">🍕</span>
             </div>
-            <div className="text-left">
-              <span className="text-2xl font-black tracking-wider bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
-                AROMA<span className="text-white">SLICE</span>
+            <div>
+              <span className="text-xl font-black tracking-wider text-white">
+                AROMA<span className="text-orange-500">SLICE</span>
               </span>
-              <span className="block text-[10px] tracking-widest uppercase text-slate-400 font-semibold">
-                Artisan Pizzeria & Lab
+              <span className="block text-[10px] tracking-widest uppercase text-neutral-400 font-semibold">
+                Artisan Pizzeria
               </span>
             </div>
-          </button>
+          </Link>
 
-          
-          <nav className="hidden md:flex items-center space-x-1 bg-slate-900/80 p-1.5 rounded-full border border-slate-800/80">
-            <button className="px-5 py-2.5 rounded-full text-sm font-semibold text-orange-400 bg-slate-800/80 shadow transition-all">
-              <i className="fa-solid fa-house mr-2" /> Home
+          {/* Center Navigation Links (Standard landing page navigation) */}
+          <nav className="hidden md:flex items-center space-x-1 bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-800">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold text-neutral-300 hover:text-white transition"
+            >
+              Home
             </button>
             <button
-              onClick={() => goTo('menu')}
-              className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-300 hover:text-white transition-all"
+              onClick={() => scrollTo('products-section')}
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-orange-400 bg-orange-500/10 transition"
             >
-              <i className="fa-solid fa-utensils mr-2" /> Menu
+              Menu &amp; Products
             </button>
             <button
-              onClick={() => goTo('builder')}
-              className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-300 hover:text-white transition-all"
+              onClick={() => scrollTo('features-section')}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold text-neutral-300 hover:text-white transition"
             >
-              <i className="fa-solid fa-wand-magic-sparkles mr-2 text-amber-400" /> Builder
+              Our Oven
             </button>
             <button
-              onClick={() => goTo('tracker')}
-              className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-300 hover:text-white transition-all"
+              onClick={() => scrollTo('how-it-works')}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold text-neutral-300 hover:text-white transition"
             >
-              <i className="fa-solid fa-clock-rotate-left mr-2 text-sky-400" /> Tracker
+              How It Works
             </button>
           </nav>
 
-          
+          {/* Right Action: Cart Button, Add Product & Auth / Dashboard */}
           <div className="flex items-center gap-3">
+            
+            {/* Quick "+ Add Product" button on landing page */}
             <button
-              onClick={() => goTo('menu')}
-              className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-500 text-white font-semibold transition-all transform hover:scale-105 shadow-lg shadow-orange-600/30"
+              onClick={openAddModal}
+              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold border border-neutral-700 transition"
             >
-              <i className="fa-solid fa-bag-shopping" />
-              <span>Order Now</span>
+              <span>+</span>
+              <span>Add Product</span>
             </button>
 
+            {/* Cart Button with Count Badge */}
             <button
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              className="md:hidden w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center"
+              onClick={() => setCartDrawerOpen(true)}
+              className="relative px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-orange-600/30 transition hover:scale-105"
+            >
+              <span>🛒</span>
+              <span className="hidden sm:inline">Cart</span>
+              {totalCartCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-white text-neutral-900 text-[11px] font-black">
+                  {totalCartCount}
+                </span>
+              )}
+            </button>
+
+            {/* Account / Dashboard / Login Links */}
+            {auth?.user ? (
+              <Link
+                href="/dashboard"
+                className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold border border-neutral-700 transition flex items-center gap-2"
+              >
+                <span>👤</span>
+                <span className="hidden sm:inline">Dashboard</span>
+              </Link>
+            ) : canLogin ? (
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="px-3 py-1.5 text-xs font-bold text-neutral-300 hover:text-white transition"
+                >
+                  Log in
+                </Link>
+                {canRegister && (
+                  <Link
+                    href="/register"
+                    className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold border border-neutral-700 transition"
+                  >
+                    Register
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/dashboard"
+                className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold border border-neutral-700 transition"
+              >
+                Dashboard
+              </Link>
+            )}
+
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700 text-neutral-300 flex items-center justify-center text-sm"
               aria-label="Toggle menu"
             >
-              <i className={`fa-solid ${mobileMenuOpen ? 'fa-xmark' : 'fa-bars'}`} />
+              {mobileMenuOpen ? '✕' : '☰'}
             </button>
           </div>
         </div>
 
-        
-        <div
-          className={`md:hidden overflow-hidden transition-all duration-300 bg-[#12141c]/95 backdrop-blur border-t border-slate-800 ${
-            mobileMenuOpen ? 'max-h-96' : 'max-h-0'
-          }`}
-        >
-          <div className="px-4 py-4 space-y-2">
-            {[
-              { label: 'Menu', view: 'menu', icon: 'fa-utensils' },
-              { label: 'Pizza Builder', view: 'builder', icon: 'fa-wand-magic-sparkles' },
-              { label: 'Live Tracker', view: 'tracker', icon: 'fa-clock-rotate-left' },
-            ].map((item) => (
-              <button
-                key={item.view}
-                onClick={() => goTo(item.view)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-semibold hover:border-orange-500/60 transition"
-              >
-                <i className={`fa-solid ${item.icon} text-orange-400`} />
-                {item.label}
-              </button>
-            ))}
+        {/* Mobile Dropdown Nav */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-neutral-950 border-t border-neutral-800 px-4 py-4 space-y-2">
+            <button
+              onClick={() => scrollTo('products-section')}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-orange-400 bg-orange-500/10"
+            >
+              🍕 Menu &amp; Products
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openAddModal();
+              }}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-neutral-200 hover:bg-neutral-900"
+            >
+              + Add New Product
+            </button>
+            <button
+              onClick={() => scrollTo('features-section')}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-neutral-200 hover:bg-neutral-900"
+            >
+              🔥 Our Wood-Fired Oven
+            </button>
+            <Link
+              href="/dashboard"
+              className="block w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-neutral-200 hover:bg-neutral-900"
+            >
+              👤 Go to Dashboard
+            </Link>
           </div>
-        </div>
+        )}
       </header>
 
-      
-      <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden">
-        
-        <div
-          ref={heroRef}
-          className="absolute top-1/4 -right-40 w-[600px] h-[600px] rounded-full bg-orange-600/20 blur-[120px] pointer-events-none transition-transform duration-300"
-        />
-        <div className="absolute -top-20 -left-40 w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(234,88,12,0.10),transparent_60%)] pointer-events-none" />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+      {/* ------------------------------------------------------------- */}
+      {/* HERO SECTION                                                  */}
+      {/* ------------------------------------------------------------- */}
+      <section className="relative pt-16 pb-20 sm:pt-24 sm:pb-28 overflow-hidden bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-900">
+        <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full bg-orange-600/10 blur-[120px] pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
             
-            <div className="space-y-7 animate-fade-up">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-bold uppercase tracking-wider">
+            <div className="space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-bold uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                Wood-Fired Perfection
-              </span>
+                Fresh From The Wood-Fired Oven
+              </div>
 
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[1.05]">
-                Handcrafted Slices,{' '}
+              <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight">
+                Handcrafted Pizza,{' '}
                 <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-amber-500 bg-clip-text text-transparent">
                   Baked To Perfection
                 </span>
               </h1>
 
-              <p className="text-slate-300 text-lg max-w-xl leading-relaxed">
-                From Naples-inspired classics to your own custom masterpiece — AromaSlice brings
-                artisan pizza craft straight to your door, tracked live from oven to doorstep.
+              <p className="text-neutral-300 text-base sm:text-lg max-w-xl leading-relaxed">
+                Explore our signature menu or add custom pizzas that display directly on this landing page.
+                Add any slice to your cart and enjoy artisan flavor delivered hot to your doorstep.
               </p>
 
-              <div className="flex flex-wrap gap-4 pt-2">
+              <div className="flex flex-wrap gap-3 pt-2">
                 <button
-                  onClick={() => goTo('menu')}
-                  className="group px-7 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-bold hover:brightness-110 transition-all shadow-xl shadow-orange-500/25 flex items-center gap-3 transform hover:-translate-y-0.5"
+                  onClick={() => scrollTo('products-section')}
+                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-neutral-950 font-black hover:brightness-110 transition shadow-xl shadow-orange-500/25 flex items-center gap-2"
                 >
-                  <i className="fa-solid fa-pizza-slice" />
-                  Explore the Menu
-                  <i className="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform" />
+                  <span>Explore Menu &amp; Products</span>
+                  <span>↓</span>
                 </button>
-
                 <button
-                  onClick={() => goTo('builder')}
-                  className="px-7 py-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-slate-200 font-bold hover:border-orange-500/60 hover:text-white transition-all flex items-center gap-3"
+                  onClick={openAddModal}
+                  className="px-6 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold border border-neutral-700 transition flex items-center gap-2"
                 >
-                  <i className="fa-solid fa-wand-magic-sparkles text-amber-400" />
-                  Build Your Own
+                  <span>+ Add Product</span>
                 </button>
               </div>
 
-              
-              <div className="flex items-center gap-6 pt-4 text-sm text-slate-400">
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-star text-amber-400" />
-                  <span className="font-semibold text-slate-300">4.9</span>
-                  <span>(2,400+ reviews)</span>
+              <div className="flex items-center gap-6 pt-4 text-xs text-neutral-400">
+                <div>
+                  <span className="font-bold text-white text-sm">4.9 ★</span> (2,400+ reviews)
                 </div>
-                <div className="w-px h-5 bg-slate-700" />
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-truck-fast text-emerald-400" />
-                  <span>Free delivery over $40</span>
+                <div className="w-px h-4 bg-neutral-700" />
+                <div>
+                  <span className="font-bold text-white text-sm">{products.length} Products</span> on Menu
                 </div>
               </div>
             </div>
 
-            
-            <div className="relative flex items-center justify-center">
-              <div className="relative w-72 h-72 sm:w-96 sm:h-96">
-                
-                <div className="absolute inset-0 rounded-full border-2 border-dashed border-orange-500/20 animate-spin-slow" />
-                <div className="absolute inset-6 rounded-full border border-slate-800" />
-
-               
-                <div className="absolute inset-10 rounded-full bg-gradient-to-tr from-orange-600/40 to-amber-500/20 blur-3xl" />
-
-               
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-56 h-56 sm:w-72 sm:h-72 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-2xl shadow-orange-900/50 animate-float relative overflow-hidden">
-                    <div className="absolute inset-3 rounded-full bg-gradient-to-br from-amber-400/40 to-transparent" />
-                    <span className="text-[140px] sm:text-[180px] leading-none select-none drop-shadow-2xl">
-                      🍕
-                    </span>
-
-                   
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="absolute top-8 w-3 h-8 rounded-full bg-white/40 blur-md animate-steam"
-                        style={{ left: `${40 + i * 12}%`, animationDelay: `${i * 0.6}s` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                
-                <div className="absolute -left-4 top-10 bg-[#16181f]/95 backdrop-blur border border-slate-700 rounded-2xl px-4 py-2.5 shadow-xl animate-float" style={{ animationDelay: '0.5s' }}>
-                  <div className="flex items-center gap-2">
-                    <i className="fa-solid fa-fire text-orange-500" />
-                    <div className="leading-tight">
-                      <span className="block text-[10px] text-slate-500 uppercase font-bold">Oven</span>
-                      <span className="block text-sm font-black text-white">900°F</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute -right-4 bottom-16 bg-[#16181f]/95 backdrop-blur border border-slate-700 rounded-2xl px-4 py-2.5 shadow-xl animate-float" style={{ animationDelay: '1.2s' }}>
-                  <div className="flex items-center gap-2">
-                    <i className="fa-solid fa-stopwatch text-sky-400" />
-                    <div className="leading-tight">
-                      <span className="block text-[10px] text-slate-500 uppercase font-bold">Ready in</span>
-                      <span className="block text-sm font-black text-white">12 min</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute right-6 -top-2 bg-[#16181f]/95 backdrop-blur border border-slate-700 rounded-2xl px-4 py-2.5 shadow-xl animate-float" style={{ animationDelay: '0.9s' }}>
-                  <div className="flex items-center gap-2">
-                    <i className="fa-solid fa-leaf text-emerald-400" />
-                    <span className="text-xs font-bold text-slate-200">Fresh Daily</span>
-                  </div>
+            {/* Visual Pizza Banner */}
+            <div className="relative flex justify-center">
+              <div className="relative w-72 h-72 sm:w-80 sm:h-80 rounded-3xl overflow-hidden shadow-2xl border border-neutral-800 group">
+                <img
+                  src="https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&q=80&auto=format&fit=crop"
+                  alt="Wood Fired Pizza"
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-6">
+                  <span className="text-xs uppercase font-extrabold text-orange-400 tracking-wider">
+                    Signature Slice
+                  </span>
+                  <h3 className="text-xl font-black text-white">Artisan Neapolitan</h3>
+                  <p className="text-xs text-neutral-300">San Marzano tomatoes &amp; 900°F volcanic stone bake</p>
                 </div>
               </div>
             </div>
+
           </div>
+        </div>
+      </section>
 
+      {/* ------------------------------------------------------------- */}
+      {/* PRODUCTS DISPLAY SECTION (PRODUCTS DISPLAYED ON LANDING PAGE) */}
+      {/* ------------------------------------------------------------- */}
+      <section id="products-section" className="py-20 bg-neutral-950 border-t border-neutral-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
-            {STATS.map((stat, i) => (
-              <div
-                key={stat.label}
-                className="bg-slate-900/60 backdrop-blur border border-slate-800 rounded-2xl p-5 text-center hover:border-orange-500/40 transition-colors animate-fade-up"
-                style={{ animationDelay: `${0.1 * i}s` }}
-              >
-                <span className="block text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                  {stat.value}
-                </span>
-                <span className="block text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
-                  {stat.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-     
-      <section className="relative py-20 sm:py-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="text-xs font-bold uppercase tracking-widest text-orange-400">
-              Why AromaSlice
-            </span>
-            <h2 className="text-3xl sm:text-5xl font-black text-white mt-3 leading-tight">
-              Crafted with{' '}
-              <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                obsession
-              </span>
-            </h2>
-            <p className="text-slate-400 mt-4">
-              Every detail matters — from the fermentation of our dough to the last sprinkle of basil.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((feature, i) => (
-              <div
-                key={feature.title}
-                className="group relative bg-slate-900/60 border border-slate-800 rounded-3xl p-6 hover:border-orange-500/50 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-orange-950/40 animate-fade-up"
-                style={{ animationDelay: `${0.08 * i}s` }}
-              >
-                <div
-                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-white text-xl shadow-lg mb-5 group-hover:scale-110 transition-transform`}
-                >
-                  <i className={`fa-solid ${feature.icon}`} />
-                </div>
-                <h3 className="text-lg font-black text-white mb-2">{feature.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{feature.desc}</p>
-
-                <div className="absolute bottom-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="relative py-20 sm:py-28 bg-gradient-to-b from-transparent via-slate-900/40 to-transparent">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-           
+          {/* Section Heading & Controls */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-orange-400">
-                How It Works
+                Menu &amp; Catalog
               </span>
-              <h2 className="text-3xl sm:text-5xl font-black text-white mt-3 leading-tight">
-                From oven to door in{' '}
-                <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                  three simple steps
-                </span>
+              <h2 className="text-3xl sm:text-4xl font-black text-white mt-1">
+                Our Fresh Artisan Pizzas
               </h2>
-              <p className="text-slate-400 mt-4 max-w-lg">
-                No fuss, no waiting. Just great pizza, delivered the way it should be.
+              <p className="text-sm text-neutral-400 mt-1 max-w-xl">
+                Browse our current pizzas or add your own custom product. Newly added items display right here!
               </p>
-
-              <div className="mt-10 space-y-3">
-                {STEPS.map((step, i) => (
-                  <button
-                    key={step.num}
-                    onMouseEnter={() => setActiveStep(i)}
-                    onClick={() => setActiveStep(i)}
-                    className={`w-full text-left rounded-2xl border p-5 transition-all duration-300 flex items-start gap-4 ${
-                      activeStep === i
-                        ? 'bg-orange-600/10 border-orange-500/60 shadow-lg shadow-orange-950/30'
-                        : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 transition-all ${
-                        activeStep === i
-                          ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-900/40'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <i className={`fa-solid ${step.icon}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`text-xs font-black tracking-wider ${
-                            activeStep === i ? 'text-orange-400' : 'text-slate-600'
-                          }`}
-                        >
-                          {step.num}
-                        </span>
-                        <h3 className="text-base font-bold text-white">{step.title}</h3>
-                      </div>
-                      <p className="text-sm text-slate-400 mt-1 leading-relaxed">{step.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
             </div>
 
-            
-            <div className="relative">
-              <div className="relative aspect-square max-w-lg mx-auto">
-                <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-orange-600/20 via-transparent to-amber-500/10 blur-2xl" />
-
-                <div className="relative h-full rounded-[2rem] bg-[#16181f] border border-slate-800 p-8 flex flex-col items-center justify-center overflow-hidden shadow-2xl">
-                 
-                  <span className="absolute -top-6 -right-2 text-[180px] font-black text-slate-800/60 leading-none select-none">
-                    {STEPS[activeStep].num}
-                  </span>
-
-                  
-                  <div
-                    key={activeStep}
-                    className="relative w-32 h-32 rounded-3xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white text-5xl shadow-2xl shadow-orange-900/50 animate-pulse-glow"
-                  >
-                    <i className={`fa-solid ${STEPS[activeStep].icon}`} />
-                  </div>
-
-                  <h3 className="relative text-2xl font-black text-white mt-8 text-center">
-                    {STEPS[activeStep].title}
-                  </h3>
-                  <p className="relative text-slate-400 text-sm text-center mt-3 max-w-xs leading-relaxed">
-                    {STEPS[activeStep].desc}
-                  </p>
-
-                 
-                  <div className="relative flex items-center gap-2 mt-8">
-                    {STEPS.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setActiveStep(i)}
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          activeStep === i ? 'w-8 bg-orange-500' : 'w-2 bg-slate-700 hover:bg-slate-600'
-                        }`}
-                        aria-label={`Go to step ${i + 1}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      
-      <section className="relative py-20 sm:py-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-orange-400">
-                Signature Slices
-              </span>
-              <h2 className="text-3xl sm:text-5xl font-black text-white mt-3 leading-tight">
-                A taste of the{' '}
-                <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                  menu
-                </span>
-              </h2>
-            </div>
-            <button
-              onClick={() => goTo('menu')}
-              className="self-start sm:self-auto px-5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-semibold hover:border-orange-500/60 hover:text-white transition flex items-center gap-2"
-            >
-              View Full Menu
-              <i className="fa-solid fa-arrow-right text-orange-400" />
-            </button>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {PREVIEW_PIZZAS.map((pizza, i) => (
-              <div
-                key={pizza.name}
-                className="group bg-slate-900/60 border border-slate-800 rounded-3xl overflow-hidden hover:border-orange-500/50 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-orange-950/40 animate-fade-up"
-                style={{ animationDelay: `${0.08 * i}s` }}
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={openAddModal}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-neutral-950 font-black text-xs hover:brightness-110 transition shadow-lg shadow-orange-500/20 flex items-center gap-1.5"
               >
-                <div className="relative h-40 bg-gradient-to-br from-orange-900/30 to-slate-900 flex items-center justify-center">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(249,115,22,0.35),transparent_60%)]" />
-                  <span className="text-6xl group-hover:scale-110 group-hover:rotate-6 transition-transform duration-500">
-                    {pizza.emoji}
-                  </span>
-                  <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300 text-[10px] font-black uppercase tracking-wider">
-                    {pizza.tag}
-                  </span>
-                </div>
-
-                <div className="p-5">
-                  <h3 className="text-base font-black text-white leading-snug">{pizza.name}</h3>
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="text-lg font-black text-orange-400">
-                      ${pizza.price.toFixed(2)}
-                    </span>
-                    <button
-                      onClick={() => goTo('menu')}
-                      className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white transition flex items-center justify-center"
-                      aria-label={`Add ${pizza.name}`}
-                    >
-                      <i className="fa-solid fa-plus text-sm" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      
-      <section className="relative py-20 sm:py-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-orange-950/60 via-slate-900 to-slate-900 border border-slate-800 p-10 sm:p-16">
-            
-            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-600/30 blur-[100px]" />
-            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-amber-500/20 blur-[100px]" />
-
-            <div className="relative text-center max-w-3xl mx-auto space-y-6">
-              <span className="inline-block text-5xl mb-2">🔥</span>
-              <h2 className="text-3xl sm:text-5xl font-black text-white leading-tight">
-                Ready to build your{' '}
-                <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                  perfect pie?
-                </span>
-              </h2>
-              <p className="text-slate-300 text-lg">
-                Head into the Pizza Lab and craft your custom masterpiece — from crust to toppings.
-              </p>
-              <div className="flex flex-wrap justify-center gap-4 pt-2">
-                <button
-                  onClick={() => goTo('builder')}
-                  className="px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-bold hover:brightness-110 transition-all shadow-xl shadow-orange-500/30 flex items-center gap-3 transform hover:-translate-y-0.5"
-                >
-                  <i className="fa-solid fa-wand-magic-sparkles" />
-                  Open Pizza 
-                </button>
-                <button
-                  onClick={() => goTo('menu')}
-                  className="px-8 py-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-slate-200 font-bold hover:border-orange-500/60 hover:text-white transition flex items-center gap-3"
-                >
-                  <i className="fa-solid fa-utensils" />
-                  Browse Menu
-                </button>
-              </div>
+                <span>+</span>
+                <span>Add Product</span>
+              </button>
+              <button
+                onClick={handleResetDefaults}
+                className="px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white text-xs font-semibold transition"
+                title="Reset to default pizza items"
+              >
+                Reset Defaults
+              </button>
             </div>
           </div>
-        </div>
-      </section>
 
-      
-      <footer className="border-t border-slate-800 bg-[#0c0d12]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-2 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white">
-                <i className="fa-solid fa-pizza-slice rotate-45" />
-              </div>
-              <span className="text-xl font-black tracking-wider bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
-                AROMA<span className="text-white">SLICE</span>
-              </span>
+          {/* Search Bar & Tag Filter Pills */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 mb-8 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">🔍</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search pizzas by name, crust, or ingredients..."
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500 transition"
+              />
             </div>
-            <p className="text-slate-400 text-sm max-w-md leading-relaxed">
-              Wood-fired artisan pizza, crafted slice by slice. Order online, build your own
-              masterpiece, and track it live from our oven to your door.
-            </p>
-            <div className="flex gap-3 pt-1">
-              {['instagram', 'x-twitter', 'facebook-f'].map((icon) => (
-                <a
-                  key={icon}
-                  href="#"
-                  className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 hover:border-orange-500/60 text-slate-400 hover:text-orange-400 transition flex items-center justify-center"
-                  aria-label={icon}
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+              {['All', 'Classic', 'Best Seller', 'Spicy', 'Vegetarian', 'Chef Special'].map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(tag)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                    selectedTag === tag
+                      ? 'bg-orange-500 text-neutral-950'
+                      : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                  }`}
                 >
-                  <i className={`fa-brands fa-${icon}`} />
-                </a>
+                  {tag}
+                </button>
               ))}
             </div>
           </div>
 
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-4">
-              Explore
-            </h4>
-            <ul className="space-y-2.5 text-sm text-slate-400">
-              <li>
-                <button onClick={() => goTo('menu')} className="hover:text-orange-400 transition">
-                  Signature Menu
-                </button>
-              </li>
-              <li>
-                <button onClick={() => goTo('builder')} className="hover:text-orange-400 transition">
-                  Pizza Builder
-                </button>
-              </li>
-              <li>
-                <button onClick={() => goTo('tracker')} className="hover:text-orange-400 transition">
-                  Live Tracker
-                </button>
-              </li>
-            </ul>
+          {/* Products Grid */}
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-16 bg-neutral-900/50 rounded-2xl border border-neutral-800 p-8">
+              <span className="text-4xl">🍕</span>
+              <h3 className="text-lg font-bold text-white mt-3">No products found</h3>
+              <p className="text-sm text-neutral-400 mt-1">Try another search or add a new pizza product!</p>
+              <button
+                onClick={openAddModal}
+                className="mt-4 px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-bold hover:bg-orange-500 transition"
+              >
+                + Add Product Now
+              </button>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredProducts.map((pizza) => {
+                const qty = cart[pizza.id] || 0;
+                const tagStyle = TAG_COLORS[pizza.tag] || 'bg-neutral-800 text-neutral-300 border-neutral-700';
+
+                return (
+                  <div
+                    key={pizza.id}
+                    className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden flex flex-col justify-between group hover:border-orange-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-orange-950/20"
+                  >
+                    <div>
+                      {/* Product Image & Badges */}
+                      <div className="relative h-48 bg-neutral-950 overflow-hidden">
+                        <img
+                          src={pizza.image}
+                          alt={pizza.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                          loading="lazy"
+                        />
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider backdrop-blur-md ${tagStyle}`}>
+                            {pizza.tag}
+                          </span>
+                        </div>
+                        {pizza.crust && (
+                          <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-[11px] font-medium text-neutral-300">
+                            🌾 {pizza.crust}
+                          </div>
+                        )}
+                        <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-lg p-1 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            onClick={() => openEditModal(pizza)}
+                            className="w-7 h-7 rounded bg-neutral-800 hover:bg-orange-600 text-neutral-300 hover:text-white flex items-center justify-center text-xs"
+                            title="Edit Product"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(pizza.id)}
+                            className="w-7 h-7 rounded bg-neutral-800 hover:bg-red-600 text-neutral-300 hover:text-white flex items-center justify-center text-xs"
+                            title="Delete Product"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Product Content */}
+                      <div className="p-5">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="text-lg font-black text-white group-hover:text-orange-400 transition">
+                            {pizza.name}
+                          </h3>
+                          <span className="text-lg font-black text-orange-400 tabular-nums shrink-0">
+                            ₱{pizza.price.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-neutral-400 leading-relaxed line-clamp-3 mb-4">
+                          {pizza.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Add to Cart Actions */}
+                    <div className="p-5 pt-0">
+                      {qty === 0 ? (
+                        <button
+                          onClick={() => addToCart(pizza.id)}
+                          className="w-full py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-orange-600/20"
+                        >
+                          <span>🛒</span>
+                          <span>Add to Cart</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-xl p-1">
+                          <button
+                            onClick={() => decrementCart(pizza.id)}
+                            className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-black text-sm flex items-center justify-center"
+                          >
+                            −
+                          </button>
+                          <span className="text-xs font-bold text-orange-400 tabular-nums">
+                            {qty} in cart
+                          </span>
+                          <button
+                            onClick={() => addToCart(pizza.id)}
+                            className="w-8 h-8 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-black text-sm flex items-center justify-center"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* FEATURES SECTION (WOOD-FIRED OVEN, ARTISAN INGREDIENTS)       */}
+      {/* ------------------------------------------------------------- */}
+      <section id="features-section" className="py-20 bg-neutral-900 border-t border-neutral-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <span className="text-xs font-bold uppercase tracking-widest text-orange-400">
+              The AromaSlice Secret
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-black text-white mt-1">
+              Obsession In Every Single Slice
+            </h2>
+            <p className="text-sm text-neutral-400 mt-2">
+              From volcanic stone baking to our 72-hour cold-fermented dough, here is why our pizza stands out.
+            </p>
           </div>
 
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-4">
-              Opening Hours
-            </h4>
-            <ul className="space-y-2.5 text-sm text-slate-400">
-              <li>Mon – Thu · 11:00 – </li>
-              <li>Fri – Sat · 11:00 – </li>
-              <li>Sunday · 12:00 – </li>
-            </ul>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                icon: '🔥',
+                title: '900°F Wood Oven',
+                desc: 'Blistered leopard crust baked in 90 seconds on authentic Italian volcanic stone.',
+              },
+              {
+                icon: '🍅',
+                title: 'San Marzano Sauce',
+                desc: 'Sun-drenched plum tomatoes grown in volcanic soil at the foot of Mount Vesuvius.',
+              },
+              {
+                icon: '🧀',
+                title: 'Fior di Latte',
+                desc: 'Fresh whole milk mozzarella pulled daily for the ultimate melt and creamy stretch.',
+              },
+              {
+                icon: '🚀',
+                title: 'Hot & Fresh Delivery',
+                desc: 'Insulated hot thermal delivery straight from our kitchen stone to your doorstep.',
+              },
+            ].map((f) => (
+              <div
+                key={f.title}
+                className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 hover:border-orange-500/40 transition"
+              >
+                <div className="text-3xl mb-4">{f.icon}</div>
+                <h3 className="text-base font-bold text-white mb-2">{f.title}</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
+      </section>
 
-        
+      {/* ------------------------------------------------------------- */}
+      {/* HOW IT WORKS SECTION                                          */}
+      {/* ------------------------------------------------------------- */}
+      <section id="how-it-works" className="py-20 bg-neutral-950 border-t border-neutral-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-xl mx-auto mb-12">
+            <span className="text-xs font-bold uppercase tracking-widest text-orange-400">
+              Simple Ordering
+            </span>
+            <h2 className="text-3xl font-black text-white mt-1">From Oven to Table</h2>
+          </div>
 
-        <div className="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} AromaSlice Artisan Pizzeria &amp; Lab. Crafted with 🔥 and semolina flour.
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { step: '01', title: 'Pick Or Add Your Pizza', desc: 'Browse our menu or use "+ Add Product" to create your custom pie.' },
+              { step: '02', title: 'Add To Cart & Checkout', desc: 'Adjust quantities in your cart and place your order in seconds.' },
+              { step: '03', title: 'Enjoy Wood-Fired Goodness', desc: 'Baked hot and delivered straight to your door with live tracking.' },
+            ].map((s) => (
+              <div key={s.step} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 relative">
+                <span className="text-3xl font-black text-orange-500/30 block mb-2">{s.step}</span>
+                <h3 className="text-base font-bold text-white mb-2">{s.title}</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* FOOTER                                                        */}
+      {/* ------------------------------------------------------------- */}
+      <footer className="bg-neutral-950 border-t border-neutral-800 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
+          <div className="flex items-center gap-2">
+            <span>🍕</span>
+            <span className="text-neutral-300 font-bold">AromaSlice Artisan Pizzeria</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="hover:text-orange-400 transition">Dashboard</Link>
+            <button onClick={() => scrollTo('products-section')} className="hover:text-orange-400 transition">Menu</button>
+            <button onClick={openAddModal} className="hover:text-orange-400 transition">+ Add Product</button>
+          </div>
+          <div>© {new Date().getFullYear()} AromaSlice. All rights reserved.</div>
         </div>
       </footer>
+
+      {/* ------------------------------------------------------------- */}
+      {/* SLIDE-OVER CART DRAWER                                        */}
+      {/* ------------------------------------------------------------- */}
+      {cartDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm flex justify-end">
+          <div className="w-full max-w-md bg-neutral-950 border-l border-neutral-800 h-full flex flex-col p-6 animate-fade-in shadow-2xl">
+            
+            {/* Cart Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🛒</span>
+                <h3 className="text-lg font-black text-white">Your Cart</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-bold">
+                  {totalCartCount} items
+                </span>
+              </div>
+              <button
+                onClick={() => setCartDrawerOpen(false)}
+                className="w-8 h-8 rounded-lg bg-neutral-900 text-neutral-400 hover:text-white flex items-center justify-center text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Cart Items List */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-3">
+              {cartItems.length === 0 ? (
+                <div className="text-center py-20 text-neutral-500 space-y-3">
+                  <span className="text-4xl block">🍕</span>
+                  <p className="text-sm font-medium">Your cart is empty.</p>
+                  <button
+                    onClick={() => setCartDrawerOpen(false)}
+                    className="text-xs text-orange-400 font-bold hover:underline"
+                  >
+                    Browse menu to add pizzas
+                  </button>
+                </div>
+              ) : (
+                cartItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-neutral-900 border border-neutral-800"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-12 h-12 rounded-lg object-cover shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-white truncate">{item.name}</h4>
+                      <span className="text-xs text-orange-400 font-semibold tabular-nums">
+                        ₱{item.price.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => decrementCart(item.id)}
+                        className="w-7 h-7 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold"
+                      >
+                        −
+                      </button>
+                      <span className="text-xs font-bold text-white w-5 text-center tabular-nums">
+                        {item.qty}
+                      </span>
+                      <button
+                        onClick={() => addToCart(item.id)}
+                        className="w-7 h-7 rounded bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold"
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="w-7 h-7 rounded bg-neutral-800 hover:bg-red-600 text-neutral-400 hover:text-white text-xs ml-1"
+                        title="Remove item"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Cart Footer */}
+            {cartItems.length > 0 && (
+              <div className="pt-4 border-t border-neutral-800 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-400">Subtotal</span>
+                  <span className="font-bold text-white tabular-nums">₱{cartTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-400">Delivery</span>
+                  <span className="font-bold text-emerald-400">FREE</span>
+                </div>
+                <div className="flex justify-between text-base font-black pt-2 border-t border-neutral-800">
+                  <span className="text-white">Total</span>
+                  <span className="text-orange-400 tabular-nums">₱{cartTotal.toFixed(2)}</span>
+                </div>
+
+                <button
+                  onClick={checkout}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-neutral-950 font-black text-sm hover:brightness-110 transition shadow-lg shadow-orange-500/25"
+                >
+                  Checkout Now · ₱{cartTotal.toFixed(2)}
+                </button>
+
+                <button
+                  onClick={clearCart}
+                  className="w-full py-2 text-center text-xs text-neutral-500 hover:text-red-400 transition"
+                >
+                  Clear Cart
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* ADD / EDIT PRODUCT MODAL (ADDS NEW PRODUCTS TO LANDING PAGE)  */}
+      {/* ------------------------------------------------------------- */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+              <h3 className="text-lg font-black text-white">
+                {modalMode === 'create' ? '🍕 Add New Product' : '✏️ Edit Product'}
+              </h3>
+              <button
+                onClick={() => setIsProductModalOpen(false)}
+                className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white flex items-center justify-center text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Smoky Hawaiian Bacon"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                    Price (₱ PHP) *
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="249"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                    Tag / Category
+                  </label>
+                  <select
+                    value={productForm.tag}
+                    onChange={(e) => setProductForm({ ...productForm, tag: e.target.value })}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="Classic">Classic</option>
+                    <option value="Best Seller">Best Seller</option>
+                    <option value="Spicy">Spicy</option>
+                    <option value="Vegetarian">Vegetarian</option>
+                    <option value="Chef Special">Chef Special</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                  Crust Type
+                </label>
+                <select
+                  value={productForm.crust}
+                  onChange={(e) => setProductForm({ ...productForm, crust: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                >
+                  <option value="Neapolitan Thin">Neapolitan Thin</option>
+                  <option value="Sourdough Crisp">Sourdough Crisp</option>
+                  <option value="Wood-Fired Crisp">Wood-Fired Crisp</option>
+                  <option value="Stuffed Garlic Crust">Stuffed Garlic Crust</option>
+                  <option value="Crispy Pan">Crispy Pan</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                  Image URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/..."
+                  value={productForm.image}
+                  onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">
+                  Ingredients / Description
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="San Marzano tomatoes, mozzarella, sweet pineapple, smoked bacon..."
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-semibold hover:bg-neutral-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-neutral-950 font-black text-xs hover:brightness-110 transition shadow-lg shadow-orange-500/20"
+                >
+                  {modalMode === 'create' ? 'Add To Landing Page' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
